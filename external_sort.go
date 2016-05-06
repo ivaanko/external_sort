@@ -2,6 +2,27 @@ package main
 
 import "flag"
 
+/* okay make my own sort to avoid using std one
+ accepts list reference to avoid list copy
+ and say let it be classic quicksort */
+func partition (array_ref *[]string, lo int, hi int) {
+  pivot := array_ref[hi]
+  i := lo
+  for j := lo; j < hi; j++ {
+    if array_ref[j] <= pivot {
+      // swap A[i] with A[j]
+           my $tmp = $array_ref->[$i];
+           $array_ref->[$i] = $array_ref->[$j];
+           $array_ref->[$j] = $tmp;
+           ++$i;
+         }
+       }
+       ## swap A[i] with A[hi]
+       my $tmp = $array_ref->[$i];
+       $array_ref->[$i] = $array_ref->[$hi];
+       $array_ref->[$hi] = $tmp;
+       return $i;
+     }
 func main() {
 	/* I make an assumption that we measure memory in lines.
 	I could set this limit in bytes, look through the input file with one more pass
@@ -15,30 +36,6 @@ func main() {
 	input_file, output_file := flag.Args()
 	inter_fname_patt := "mysorted" // pattern to name intermediate files
 	/*
-	   my ($input_file, $output_file) = @ARGV;
-
-	   ## okay make my own sort to avoid using std one
-	   ## accepts list reference to avoid list copy
-	   ## and say let it be classic quicksort
-	   sub partition {
-	     my ($array_ref, $lo, $hi) = @_;
-	     my $pivot = $array_ref->[$hi];
-	     my $i = $lo;
-	     for (my $j = $lo; $j < $hi; ++$j) {
-	       if ($array_ref->[$j] le $pivot) {
-	         ## swap A[i] with A[j] - python or golang without tmp var ;) - perl too you idiot
-	         my $tmp = $array_ref->[$i];
-	         $array_ref->[$i] = $array_ref->[$j];
-	         $array_ref->[$j] = $tmp;
-	         ++$i;
-	       }
-	     }
-	     ## swap A[i] with A[hi]
-	     my $tmp = $array_ref->[$i];
-	     $array_ref->[$i] = $array_ref->[$hi];
-	     $array_ref->[$hi] = $tmp;
-	     return $i;
-	   }
 
 	   sub mysort {
 	     my ($array_ref, $lo, $hi) = @_;
