@@ -1,19 +1,16 @@
-#!/usr/bin/env perl
-use strict;
-use warnings;
+package main
 
-use Getopt::Long;
+import "flag"
 
-if (@ARGV < 2) {
-  print "USAGE: $0 [-avail_mem <lines>] <input file> <output file>\n";
-  exit 1;
-}
+func main() {
+/* I make an assumption that we measure memory in lines.
+ I could set this limit in bytes, look through the input file with one more pass
+ to find the longest line length but I think we can omit this here. */
+  flag.IntVar(&avail_mem, "avail_mem", 100000, "Number of lines to fit the memory")
+  flag.Parse()
 
-my $avail_mem = 100000; ## I make an assumption that we measure memory in lines.
-## I could set this limit in bytes, look through the input file with one more pass
-## to find the longest line length but I think we can omit this here.
-my $inter_fname_patt = "mysorted"; ## pattern to name intermediate files
-GetOptions("avail_mem=i" => \$avail_mem);
+inter_fname_patt := "mysorted"; // pattern to name intermediate files
+
 my ($input_file, $output_file) = @ARGV;
 
 ## okay make my own sort to avoid using std one
