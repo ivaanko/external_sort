@@ -18,9 +18,37 @@ my ($input_file, $output_file) = @ARGV;
 
 ## okay make my own sort to avoid using std one
 ## accepts list reference to avoid list copy
-sub mysort ($) {
-  ## placeholder
-  @{$_[0]} = sort @{$_[0]};
+## and say let it be classic quicksort
+sub partition {
+  my ($array_ref, $lo, $hi) = @_;
+  my $pivot = $array_ref->[$hi];
+  my $i = $lo;
+  for (my $j = $lo; $j < $hi; ++$j) {
+    if ($array_ref->[$j] le $pivot) {
+      ## swap A[i] with A[j] - python or golang without tmp var ;)
+      my $tmp = $array_ref->[$i];
+      $array_ref->[$i] = $array_ref->[$j];
+      $array_ref->[$j] = $tmp;
+      ++$i;
+    }
+  }
+  ## swap A[i] with A[hi]
+  my $tmp = $array_ref->[$i];
+  $array_ref->[$i] = $array_ref->[$hi];
+  $array_ref->[$hi] = $tmp;
+  return $i;
+}
+
+sub mysort {
+  my ($array_ref, $lo, $hi) = @_;
+  return unless (defined $array_ref and @{$array_ref});
+  $lo = 0 unless (defined $lo);
+  $hi = $#{$array_ref} unless (defined $hi);
+  if ($lo < $hi) {
+    my $p = partition($array_ref, $lo, $hi);
+    mysort($array_ref, $lo, $p - 1);
+    mysort($array_ref, $p + 1, $hi);
+  }
 }
 
 ## 1. Read input files into chunks fitting available memory, sort the chunks
