@@ -9,7 +9,9 @@ if (@ARGV < 2) {
   exit 1;
 }
 
-my $avail_mem = 100000;
+my $avail_mem = 100000; ## I make an assumption that we measure memory in lines.
+## I could set this limit in bytes, look through the input file with one more pass
+## to find the longest line length but I think we can omit this here.
 my $inter_fname_patt = "mysorted"; ## pattern to name intermediate files
 GetOptions("avail_mem=i" => \$avail_mem);
 my ($input_file, $output_file) = @ARGV;
@@ -26,7 +28,7 @@ sub mysort ($) {
 open (IN, $input_file) or die "Could not open input file '$input_file': $!";
 my $tot_lines = 0;
 my $eof = 0;
-my $ind = 0;
+my $ind = 0; ## intermediate file name index, also number of sorted pieces for further merge
 while (not $eof) {
   my @lines; ## I believe here I empty the buffer
   my $line;
