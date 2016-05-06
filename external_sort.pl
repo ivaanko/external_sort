@@ -18,7 +18,7 @@ my ($input_file, $output_file) = @ARGV;
 ## accepts list reference to avoid list copy
 sub mysort ($) {
   ## placeholder
-  @{$_[0]} = reverse sort @{$_[0]};
+  @{$_[0]} = sort @{$_[0]};
 }
 
 ## 1. Read input files into chunks fitting available memory, sort the chunks
@@ -58,7 +58,58 @@ for (my $i = 0; $i < $ind; ++$i) {
 my $chunk_size = int($avail_mem / ($ind + 1)); ## +1 for output buffer
 print "chunk_size='$chunk_size'\n";
 my @output_buffer;
+my @input_buffers;
 
+sub read_into_buffer {
+  my ($i, $input_buffers_ref, $fhandler, $chunk_size) = @_;
+  my @lines;
+  my $line;
+  while ((@lines < $chunk_size) and defined ($line = <$fhandler>)) {
+    push @lines, $line;
+  }
+  $input_buffers_ref->[$i] = \@lines;
+  return int(@lines);
+}
+
+## read into input buffers
+for (my $i = 0; $i < $ind; ++$i) {
+  read_into_buffer($i, \@input_buffers, $fhandlers[$i], $chunk_size);
+}
+my $empty_handlers = 0;
+## top-level loop here
+do {
+  ## k-merge here (ind-merge)
+  ## find "minimum" of ind heads, put it into output buffer and pop it
+  my $min_ind;
+  ## skip empty buffer
+  for ($min_ind = 0; $min_ind < $ind; ++$min_ind) {
+    if (@{$input_buffers[$min_ind]}) {
+      last;
+    }
+  }
+  for (my $i = $min_ind + 1; $i < $ind; ++$i) {
+    ## skip empty buffer
+    next unless (@{$input_buffers[$i]});
+    ## ok I won't implement my own string comparison
+    if ($input_buffers[$i][0] lt $input_buffers[$min_ind][0]) {
+      $min_ind = $i;
+    }
+  }
+  push @output_buffer, shift @{$input_buffers[$min_ind]};
+  if (@output_buffer == $chunk_size) {
+    ## flush output buffer
+    print OUT @output_buffer;
+    @output_buffer = ();
+  }
+  unless (@{$input_buffers[$min_ind]}) {
+    unless (read_into_buffer($min_ind, \@input_buffers, $fhandlers[$min_ind], $chunk_size)) {
+      ++$empty_handlers;
+    }
+  }
+} while ($empty_handlers < $ind);
+
+## final flush of out buffer
+print OUT @output_buffer;
 close OUT;
 
 ## cleanup
