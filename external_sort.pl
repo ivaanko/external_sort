@@ -25,17 +25,13 @@ sub partition {
   my $i = $lo;
   for (my $j = $lo; $j < $hi; ++$j) {
     if ($array_ref->[$j] le $pivot) {
-      ## swap A[i] with A[j] - python or golang without tmp var ;) - perl too you idiot
-      my $tmp = $array_ref->[$i];
-      $array_ref->[$i] = $array_ref->[$j];
-      $array_ref->[$j] = $tmp;
+      ## swap A[i] with A[j]
+      ($array_ref->[$i], $array_ref->[$j]) = ($array_ref->[$j], $array_ref->[$i]);
       ++$i;
     }
   }
   ## swap A[i] with A[hi]
-  my $tmp = $array_ref->[$i];
-  $array_ref->[$i] = $array_ref->[$hi];
-  $array_ref->[$hi] = $tmp;
+  ($array_ref->[$i], $array_ref->[$hi]) = ($array_ref->[$hi], $array_ref->[$i]);
   return $i;
 }
 
