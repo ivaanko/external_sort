@@ -1,80 +1,95 @@
 package main
 
-import "flag"
+import (
+	"bufio"
+	"flag"
+	"log"
+	"os"
+	"strconv"
+)
 
 /* okay make my own sort to avoid using std one
- accepts list reference to avoid list copy
- and say let it be classic quicksort */
-func partition (array_ref *[]string, lo int, hi int) {
-  pivot := array_ref[hi]
-  i := lo
-  for j := lo; j < hi; j++ {
-    if array_ref[j] <= pivot {
-      // swap A[i] with A[j]
-           my $tmp = $array_ref->[$i];
-           $array_ref->[$i] = $array_ref->[$j];
-           $array_ref->[$j] = $tmp;
-           ++$i;
-         }
-       }
-       ## swap A[i] with A[hi]
-       my $tmp = $array_ref->[$i];
-       $array_ref->[$i] = $array_ref->[$hi];
-       $array_ref->[$hi] = $tmp;
-       return $i;
-     }
+accepts list reference to avoid list copy
+and say let it be classic quicksort */
+func partition(array_ref []string, lo int, hi int) int {
+	pivot := array_ref[hi]
+	i := lo
+	for j := lo; j < hi; j++ {
+		if array_ref[j] <= pivot {
+			// swap A[i] with A[j]
+			array_ref[i], array_ref[j] = array_ref[j], array_ref[i]
+			i += 1
+		}
+	}
+	// swap A[i] with A[hi]
+	array_ref[i], array_ref[hi] = array_ref[hi], array_ref[i]
+	return i
+}
+func mysort(array_ref []string, lo int, hi int) {
+	if len(array_ref) == 0 {
+		return
+	}
+	if lo < hi {
+		p := partition(array_ref, lo, hi)
+		mysort(array_ref, lo, p-1)
+		mysort(array_ref, p+1, hi)
+	}
+}
+
 func main() {
 	/* I make an assumption that we measure memory in lines.
 	I could set this limit in bytes, look through the input file with one more pass
 	to find the longest line length but I think we can omit this here. */
+	var avail_mem int
+	var input_file, output_file string
 	flag.IntVar(&avail_mem, "avail_mem", 100000, "Number of lines to fit the memory")
+	flag.StringVar(&input_file, "input_file", "", "Input file path")
+	flag.StringVar(&output_file, "output_file", "", "Output file path")
 	flag.Parse()
-	if len(flag.Args()) < 2 {
-		flag.Usage()
-		os.Exit(1)
-	}
-	input_file, output_file := flag.Args()
 	inter_fname_patt := "mysorted" // pattern to name intermediate files
+	infile, err := os.Open(input_file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	//defer infile.Close()
 	/*
-
-	   sub mysort {
-	     my ($array_ref, $lo, $hi) = @_;
-	     return unless (defined $array_ref and @{$array_ref});
-	     $lo = 0 unless (defined $lo);
-	     $hi = $#{$array_ref} unless (defined $hi);
-	     if ($lo < $hi) {
-	       my $p = partition($array_ref, $lo, $hi);
-	       mysort($array_ref, $lo, $p - 1);
-	       mysort($array_ref, $p + 1, $hi);
-	     }
-	   }
-
-	   ## 1. Read input files into chunks fitting available memory, sort the chunks
-	   ##    using mysort() and dump them to set of intermediate files
-	   open (IN, $input_file) or die "Could not open input file '$input_file': $!";
-	   my $tot_lines = 0;
-	   my $eof = 0;
-	   my $ind = 0; ## intermediate file name index, also number of sorted pieces for further merge
-	   while (not $eof) {
-	     my @lines; ## I believe here I empty the buffer
-	     my $line;
-	     while ((@lines < $avail_mem) and defined ($line = <IN>)) {
-	       push @lines, $line;
-	     }
-	     $tot_lines += @lines;
-	     $eof = 1 unless (defined $line);
-	     if (@lines) {
-	       mysort (\@lines);
-	       my $out_fname = "${inter_fname_patt}_$ind";
-	       open (OUT, ">$out_fname") or die "Could not open output file '$out_fname': $!";
-	       print OUT @lines;
-	       close OUT;
-	       ++$ind;
-	     }
-	   }
-	   print "read total $tot_lines lines\n";
-	   close IN;
-
+	* 1. Read input files into chunks fitting available memory, sort the chunks
+	* using mysort() and dump them to set of intermediate files
+	 */
+	tot_lines := 0
+	eof := false
+	ind := 0 // intermediate file name index, also number of sorted pieces for further merge
+	scanner := bufio.NewScanner(infile)
+	for !eof {
+		lines := make([]string, avail_mem)
+		for len(lines) < avail_mem {
+			eof = !scanner.Scan()
+			if eof {
+				if err := scanner.Err(); err != nil {
+					log.Println(err)
+				}
+				break
+			}
+			lines[len(lines)] = scanner.Text()
+		}
+		tot_lines += len(lines)
+		if len(lines) > 0 {
+			mysort(lines, 0, len(lines)-1)
+			out_fname := inter_fname_patt + "_" + strconv.Itoa(ind)
+			outfile, err := os.Create(out_fname)
+			if err != nil {
+				log.Fatal(err)
+			}
+			for i := 0; i < len(lines); i += 1 {
+				outfile.WriteString(lines[i])
+			}
+			outfile.Close()
+			ind += 1
+		}
+	}
+	log.Println("read total " + strconv.Itoa(tot_lines) + " lines")
+	infile.Close()
+	/*
 	   ## 2. Merge the intermediate files into output file
 	   open (OUT, ">$output_file") or die "Could not create output file '$output_file': $!";
 	   my @fhandlers;
