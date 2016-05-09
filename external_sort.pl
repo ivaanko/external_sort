@@ -1,24 +1,35 @@
 #!/usr/bin/env perl
+
+##
+## This program sorts input text file using default lexicographic comparison
+## and external sorting algorithm based on self-implemented classic quick sort
+## of k pieces fitting memory limit (set in lines for simplicity)
+## and k-way merge of the k pieces into resulting output file.
+## No new inventions here, all credits to von Neumann and Hoare :)
+##
+
 use strict;
 use warnings;
 
 use Getopt::Long;
 
 if (@ARGV < 2) {
-  print "USAGE: $0 [-avail_mem <lines>] <input file> <output file>\n";
+  print "USAGE: $0 [-avail_mem <lines>] [-debug] <input file> <output file>\n";
   exit 1;
 }
 
 my $avail_mem = 100000; ## I make an assumption that we measure memory in lines.
 ## I could set this limit in bytes, look through the input file with one more pass
 ## to find the longest line length but I think we can omit this here.
+my $debug = 0;
 my $inter_fname_patt = "mysorted"; ## pattern to name intermediate files
-GetOptions("avail_mem=i" => \$avail_mem);
+GetOptions("avail_mem=i" => \$avail_mem, "debug" => \$debug);
 my ($input_file, $output_file) = @ARGV;
 
-## okay make my own sort to avoid using std one
+## okay make my own sort function to avoid using std one
 ## accepts list reference to avoid list copy
 ## and say let it be classic quicksort
+## part 1. partition
 sub partition {
   my ($array_ref, $lo, $hi) = @_;
   my $pivot = $array_ref->[$hi];
@@ -34,19 +45,24 @@ sub partition {
   ($array_ref->[$i], $array_ref->[$hi]) = ($array_ref->[$hi], $array_ref->[$i]);
   return $i;
 }
-
+## part 2. sorting recursion
 sub mysort {
   my ($array_ref, $lo, $hi) = @_;
   return unless (defined $array_ref and @{$array_ref});
   $lo = 0 unless (defined $lo);
   $hi = $#{$array_ref} unless (defined $hi);
+  my $swaps = 0; ## only for stats
   if ($lo < $hi) {
     my $p = partition($array_ref, $lo, $hi);
-    mysort($array_ref, $lo, $p - 1);
-    mysort($array_ref, $p + 1, $hi);
+    ## we can count number of swaps
+    $swaps = $p - $lo + 1;
+    $swaps += mysort($array_ref, $lo, $p - 1);
+    $swaps += mysort($array_ref, $p + 1, $hi);
   }
+  return $swaps;
 }
 
+## And here goes our MAIN
 ## 1. Read input files into chunks fitting available memory, sort the chunks
 ##    using mysort() and dump them to set of intermediate files
 open (IN, $input_file) or die "Could not open input file '$input_file': $!";
@@ -55,14 +71,15 @@ my $eof = 0;
 my $ind = 0; ## intermediate file name index, also number of sorted pieces for further merge
 while (not $eof) {
   my @lines; ## I believe here I empty the buffer
-  my $line;
-  while ((@lines < $avail_mem) and defined ($line = <IN>)) {
+  my $line; ## current line read from input file, will also use memory so I'll decrease the buffer by 1
+  while ((@lines < ($avail_mem - 1)) and defined ($line = <IN>)) {
     push @lines, $line;
   }
   $tot_lines += @lines;
   $eof = 1 unless (defined $line);
   if (@lines) {
-    mysort (\@lines);
+    my $swaps = mysort (\@lines);
+    print "DEBUG: swaps=$swaps\n" if ($debug);
     my $out_fname = "${inter_fname_patt}_$ind";
     open (OUT, ">$out_fname") or die "Could not open output file '$out_fname': $!";
     print OUT @lines;
@@ -70,7 +87,7 @@ while (not $eof) {
     ++$ind;
   }
 }
-print "read total $tot_lines lines\n";
+print "DEBUG: read total $tot_lines lines\n" if ($debug);
 close IN;
 
 ## 2. Merge the intermediate files into output file
@@ -81,15 +98,15 @@ for (my $i = 0; $i < $ind; ++$i) {
   open ($fhandlers[$i], $fname) or die "Could not open intermediate file '$fname': $!";
 }
 
-my $chunk_size = int($avail_mem / ($ind + 1)); ## +1 for output buffer
-print "chunk_size='$chunk_size'\n";
+my $chunk_size = int(($avail_mem - 1) / ($ind + 1)); ## +1 for output buffer, -1 for current line processing
+print "DEBUG: chunk_size='$chunk_size'\n" if ($debug);
 my @output_buffer;
 my @input_buffers;
 
 sub read_into_buffer {
   my ($i, $input_buffers_ref, $fhandler, $chunk_size) = @_;
   my @lines;
-  my $line;
+  my $line; ## current line read from input file, will also use memory so I'll decrease the buffer by 1
   while ((@lines < $chunk_size) and defined ($line = <$fhandler>)) {
     push @lines, $line;
   }
