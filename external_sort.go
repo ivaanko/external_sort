@@ -37,22 +37,24 @@ func mysort(array_ref []string, lo int, hi int) {
 		mysort(array_ref, p+1, hi)
 	}
 }
-func read_into_buffer(input_buffer_ref *[]string, fhandler *os.File, chunk_size int) int {
-	scanner := bufio.NewScanner(fhandler)
+
+//func read_into_buffer(input_buffer_ref *[]string, fhandler *os.File, chunk_size int) int {
+func read_into_buffer(input_buffer_ref *[]string, scanner *bufio.Scanner, chunk_size int) int {
+	//scanner := bufio.NewScanner(fhandler)
 	eof := false
 	if debug {
 		log.Printf("len(*input_buffer_ref)=%d, chunk_size=%d\n", len(*input_buffer_ref), chunk_size)
 	}
 	for (len(*input_buffer_ref) < chunk_size) && !eof {
 		eof = !scanner.Scan()
+		if debug {
+			log.Printf("eof=%v\n", eof)
+		}
 		if eof {
 			if err := scanner.Err(); err != nil {
 				log.Println(err)
 			}
 			break
-		}
-		if debug {
-			log.Printf("scanner.Text()=%v\n", scanner.Text())
 		}
 		*input_buffer_ref = append(*input_buffer_ref, scanner.Text())
 	}
@@ -99,9 +101,6 @@ func main() {
 			log.Printf("DEBUG: len(lines)=%d, avail_mem=%d\n", len(lines), avail_mem)
 		}
 		for len(lines) < (avail_mem - 1) {
-			if debug {
-				log.Printf("read %d lines\n", len(lines))
-			}
 			eof = !scanner.Scan()
 			if eof {
 				if err := scanner.Err(); err != nil {
@@ -119,6 +118,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
+			//defer outfile.Close()
 			for i := 0; i < len(lines); i += 1 {
 				outfile.WriteString(lines[i] + "\n")
 			}
@@ -137,15 +137,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer outfile.Close()
+	//defer outfile.Close()
 	var fhandlers []*os.File
+	var scanners []*bufio.Scanner
 	for i := 0; i < ind; i += 1 {
 		fname := inter_fname_patt + "_" + strconv.Itoa(i)
 		fh, err := os.Open(fname)
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer fh.Close()
+		scanner := bufio.NewScanner(fh)
+		scanners = append(scanners, scanner)
+		//defer fh.Close()
 		fhandlers = append(fhandlers, fh)
 	}
 	chunk_size := int((avail_mem - 1) / (ind + 1)) // -1 for current line, +1 for output buffer
@@ -158,12 +161,9 @@ func main() {
 	input_buffers = make([][]string, ind)
 	// read into input buffers
 	for i := 0; i < ind; i += 1 {
-		read_into_buffer(&input_buffers[i], fhandlers[i], chunk_size)
+		read_into_buffer(&input_buffers[i], scanners[i], chunk_size)
 	}
 
-	if debug {
-		log.Printf("input_buffers=%v\n", input_buffers)
-	}
 	empty_handlers := 0
 	// top-level loop here
 	for {
@@ -172,20 +172,19 @@ func main() {
 		min_ind := 0
 		// skip empty buffer
 		for min_ind = 0; min_ind < ind; min_ind += 1 {
-			if debug {
-				log.Printf("min_ind=%d\n", min_ind)
-				log.Printf("len(input_buffers[min_ind])=%d\n", len(input_buffers[min_ind]))
-			}
 			if len(input_buffers[min_ind]) > 0 {
 				break
 			}
-		}
-		if debug {
-			log.Printf("min_ind=%d\n", min_ind)
+			if debug {
+				log.Printf("skip empty buf min_ind=%d\n", min_ind)
+			}
 		}
 		for i := min_ind + 1; i < ind; i += 1 {
 			// skip empty buffer
 			if len(input_buffers[i]) == 0 {
+				if debug {
+					log.Printf("skip empty buf i=%d\n", i)
+				}
 				continue
 			}
 			// ok I won't implement my own string comparison
@@ -193,12 +192,10 @@ func main() {
 				min_ind = i
 			}
 		}
-		if debug {
-			log.Printf("min_ind=%d\n", min_ind)
-		}
 		// shift
 		x := input_buffers[min_ind][0]
 		input_buffers[min_ind] = input_buffers[min_ind][1:]
+		// push
 		output_buffer = append(output_buffer, x)
 		if len(output_buffer) == chunk_size {
 			// flush output buffer
@@ -208,7 +205,13 @@ func main() {
 			output_buffer = nil
 		}
 		if len(input_buffers[min_ind]) == 0 {
-			if 0 == read_into_buffer(&input_buffers[min_ind], fhandlers[min_ind], chunk_size) {
+			if debug {
+				log.Printf("reading into buffer %d\n", min_ind)
+			}
+			if read_into_buffer(&input_buffers[min_ind], scanners[min_ind], chunk_size) == 0 {
+				if debug {
+					log.Printf("EMPTY\n")
+				}
 				empty_handlers += 1
 			}
 		}
@@ -225,8 +228,14 @@ func main() {
 
 	// cleanup
 	for i := 0; i < ind; i += 1 {
-		fname := inter_fname_patt + "_" + strconv.Itoa(ind)
+		fname := inter_fname_patt + "_" + strconv.Itoa(i)
+		if debug {
+			log.Printf("DEBUG: fname=%s\n", fname)
+		}
 		fhandlers[i].Close()
-		os.Remove(fname)
+		err = os.Remove(fname)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
