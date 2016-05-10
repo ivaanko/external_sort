@@ -51,6 +51,13 @@ func read_into_buffer(input_buffer_ref *[]string, scanner *bufio.Scanner, chunk_
 			log.Printf("eof=%v\n", eof)
 		}
 		if eof {
+			if debug {
+				log.Println("DEBUG: eof")
+				log.Printf("[last]=%d\n", len(*input_buffer_ref))
+				if len(*input_buffer_ref) > 0 {
+					log.Printf("last=%d\n", (*input_buffer_ref)[len(*input_buffer_ref)-1])
+				}
+			}
 			if err := scanner.Err(); err != nil {
 				log.Println(err)
 			}
@@ -87,44 +94,36 @@ func main() {
 		log.Fatal(err)
 	}
 	//defer infile.Close()
+
 	/*
 	* 1. Read input files into chunks fitting available memory, sort the chunks
 	* using mysort() and dump them to set of intermediate files
 	 */
-	tot_lines := 0
-	eof := false
-	ind := 0 // intermediate file name index, also number of sorted pieces for further merge
 	scanner := bufio.NewScanner(infile)
-	for !eof {
+	tot_lines := 0
+	ind := 0 // intermediate file name index, also number of sorted pieces for further merge
+	for {
 		var lines []string
+		lines_read := read_into_buffer(&lines, scanner, avail_mem-1)
 		if debug {
-			log.Printf("DEBUG: len(lines)=%d, avail_mem=%d\n", len(lines), avail_mem)
+			log.Println("read " + strconv.Itoa(lines_read) + " lines")
+			log.Printf("ind=%d\n", ind)
 		}
-		for len(lines) < (avail_mem - 1) {
-			eof = !scanner.Scan()
-			if eof {
-				if err := scanner.Err(); err != nil {
-					log.Println(err)
-				}
-				break
-			}
-			lines = append(lines, scanner.Text())
+		if lines_read == 0 {
+			break
 		}
-		tot_lines += len(lines)
-		if len(lines) > 0 {
-			mysort(lines, 0, len(lines)-1)
-			out_fname := inter_fname_patt + "_" + strconv.Itoa(ind)
-			outfile, err := os.Create(out_fname)
-			if err != nil {
-				log.Fatal(err)
-			}
-			//defer outfile.Close()
-			for i := 0; i < len(lines); i += 1 {
-				outfile.WriteString(lines[i] + "\n")
-			}
-			outfile.Close()
-			ind += 1
+		tot_lines += lines_read
+		mysort(lines, 0, lines_read-1)
+		out_fname := inter_fname_patt + "_" + strconv.Itoa(ind)
+		outfile, err := os.Create(out_fname)
+		if err != nil {
+			log.Fatal(err)
 		}
+		for i := 0; i < lines_read; i += 1 {
+			outfile.WriteString(lines[i] + "\n")
+		}
+		outfile.Close()
+		ind += 1
 	}
 	if debug {
 		log.Println("read total " + strconv.Itoa(tot_lines) + " lines")
